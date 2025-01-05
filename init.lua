@@ -91,7 +91,7 @@ vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
 -- Set to true if you have a Nerd Font installed and selected in the terminal
-vim.g.have_nerd_font = false
+vim.g.have_nerd_font = true
 
 -- [[ Setting options ]]
 -- See `:help vim.o`
@@ -102,7 +102,7 @@ vim.g.have_nerd_font = false
 vim.o.number = true
 -- You can also add relative line numbers, to help with jumping.
 --  Experiment for yourself to see if you like it!
--- vim.o.relativenumber = true
+vim.o.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.o.mouse = 'a'
@@ -188,6 +188,7 @@ vim.diagnostic.config {
 }
 
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
+vim.keymap.set('n', '<leader>e', vim.diagnostic.open_float, { desc = '[E] Open diagnostic list' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
@@ -217,6 +218,12 @@ vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper win
 -- vim.keymap.set("n", "<C-S-l>", "<C-w>L", { desc = "Move window to the right" })
 -- vim.keymap.set("n", "<C-S-j>", "<C-w>J", { desc = "Move window to the lower" })
 -- vim.keymap.set("n", "<C-S-k>", "<C-w>K", { desc = "Move window to the upper" })
+
+-- Keybinds for navigating buffers
+vim.keymap.set('n', '<Tab>', '<Cmd>bn<CR>', { desc = 'Move to next buffer' })
+vim.keymap.set('n', '<S-Tab>', '<Cmd>bp<CR>', { desc = 'Move to previous buffer' })
+vim.keymap.set('n', '<leader>x', '<Cmd>bd<CR>', { desc = 'Delete current buffer' })
+vim.keymap.set('n', '<leader>bdo', '<Cmd>%bd|e#|bd#<CR>', { desc = 'Close all buffers but current' })
 
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
@@ -393,7 +400,11 @@ require('lazy').setup({
         --     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
         --   },
         -- },
-        -- pickers = {}
+        pickers = {
+          find_files = {
+            hidden = true,
+          },
+        },
         extensions = {
           ['ui-select'] = { require('telescope.themes').get_dropdown() },
         },
@@ -590,6 +601,8 @@ require('lazy').setup({
           --
           -- This may be unwanted, since they displace some of your code
           if client and client:supports_method('textDocument/inlayHint', event.buf) then
+            -- Enable inlay hints by default
+            vim.lsp.inlay_hint.enable(true)
             map('<leader>th', function() vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled { bufnr = event.buf }) end, '[T]oggle Inlay [H]ints')
           end
         end,
@@ -600,16 +613,30 @@ require('lazy').setup({
       --  See `:help lsp-config` for information about keys and how to configure
       ---@type table<string, vim.lsp.Config>
       local servers = {
-        -- clangd = {},
+        clangd = {},
         -- gopls = {},
-        -- pyright = {},
-        -- rust_analyzer = {},
+        pyright = {},
+        rust_analyzer = {},
         --
         -- Some languages (like typescript) have entire language plugins that can be useful:
         --    https://github.com/pmizio/typescript-tools.nvim
         --
         -- But for many setups, the LSP (`ts_ls`) will work just fine
-        -- ts_ls = {},
+        ts_ls = {},
+        nil_ls = {
+          ['nil'] = {
+            formatting = { command = { 'alejandra' } },
+            flake = { autoEvalInputs = true },
+          },
+        },
+        bashls = {},
+        nushell = {},
+        cmake = {},
+
+        slangd = {},
+        jsonnet_ls = {},
+        qmlls = {},
+        html = {},
 
         stylua = {}, -- Used to format Lua code
 
@@ -643,6 +670,12 @@ require('lazy').setup({
         },
       }
 
+      -- To avoid conflicts with mason's installation process and locally installed LSPs, we exclude some servers from being handled by mason.
+      -- NOTE: LSPCONFIG MASON
+      local mason_managed_servers = {
+        'lua_ls',
+      }
+
       -- Ensure the servers and tools above are installed
       --
       -- To check the current status of installed tools and/or manually install
@@ -650,7 +683,7 @@ require('lazy').setup({
       --    :Mason
       --
       -- You can press `g?` for help in this menu.
-      local ensure_installed = vim.tbl_keys(servers or {})
+      local ensure_installed = mason_managed_servers
       vim.list_extend(ensure_installed, {
         -- You can add other tools here that you want Mason to install
       })
@@ -684,7 +717,7 @@ require('lazy').setup({
         -- Disable "format_on_save lsp_fallback" for languages that don't
         -- have a well standardized coding style. You can add additional
         -- languages here or re-enable it for the disabled ones.
-        local disable_filetypes = { c = true, cpp = true }
+        local disable_filetypes = { c = true, cpp = true, shaderslang = true }
         if disable_filetypes[vim.bo[bufnr].filetype] then
           return nil
         else
@@ -696,6 +729,7 @@ require('lazy').setup({
       end,
       formatters_by_ft = {
         lua = { 'stylua' },
+        html = { 'prettier' },
         -- Conform can also run multiple formatters sequentially
         -- python = { "isort", "black" },
         --
@@ -803,20 +837,17 @@ require('lazy').setup({
     -- change the command in the config to whatever the name of that colorscheme is.
     --
     -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
-    'folke/tokyonight.nvim',
+    'catppuccin/nvim',
+    name = 'catppuccin',
     priority = 1000, -- Make sure to load this before all the other start plugins.
-    config = function()
-      ---@diagnostic disable-next-line: missing-fields
-      require('tokyonight').setup {
-        styles = {
-          comments = { italic = false }, -- Disable italics in comments
-        },
-      }
-
+    opts = {
+      transparent_background = true,
+    },
+    init = function()
       -- Load the colorscheme here.
       -- Like many other themes, this one has different styles, and you could load
       -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'tokyonight-night'
+      vim.cmd.colorscheme 'catppuccin-mocha'
     end,
   },
 
@@ -824,15 +855,17 @@ require('lazy').setup({
   {
     'folke/todo-comments.nvim',
     event = 'VimEnter',
-    dependencies = { 'nvim-lua/plenary.nvim' },
+    dependencies = { 'nvim-lua/plenary.nvim', 'nvim-telescope/telescope.nvim' },
     ---@module 'todo-comments'
     ---@type TodoOptions
     ---@diagnostic disable-next-line: missing-fields
-    opts = { signs = false },
+    opts = { signs = true },
+    init = function() vim.keymap.set('n', '<leader>st', '<Cmd>Telescope todo-comments<CR>', { desc = '[S]earch [T]odos' }) end,
   },
 
   { -- Collection of various small independent plugins/modules
-    'nvim-mini/mini.nvim',
+    'echasnovski/mini.nvim',
+    dependencies = { 'MaximilianLloyd/ascii.nvim' },
     config = function()
       -- Better Around/Inside textobjects
       --
@@ -864,6 +897,40 @@ require('lazy').setup({
 
       -- ... and there is more!
       --  Check out: https://github.com/nvim-mini/mini.nvim
+
+      -- Pick a random neovim ascii logo.
+      local ascii_nvim = require('ascii').art.text.neovim
+      local cool_headers = {
+        ascii_nvim.default1,
+        ascii_nvim.dos_rebel,
+        ascii_nvim.ogre,
+        ascii_nvim.ansi_shadow,
+        ascii_nvim.bloody,
+        ascii_nvim.delta_corps_priest1,
+        ascii_nvim.elite,
+        ascii_nvim.the_edge,
+        ascii_nvim.larry_3d,
+        ascii_nvim.sharp,
+      }
+      local starter_header = cool_headers[math.random(#cool_headers)]
+
+      -- Simple starter page with header and recent files.
+      require('mini.starter').setup {
+        -- Set the logo as header.
+        header = table.concat(starter_header, '\n'),
+        -- Remove the instructions at the bottom.
+        footer = '',
+      }
+
+      -- Simple tabline.
+      require('mini.tabline').setup { show_icons = true }
+
+      -- Enable map and open it by default.
+      local mini_map = require 'mini.map'
+      mini_map.setup()
+      mini_map.open()
+
+      vim.keymap.set('n', '<leader>tm', function() mini_map.toggle() end, { desc = '[T]oggle [M]inimap' })
     end,
   },
 
@@ -930,17 +997,17 @@ require('lazy').setup({
   --  Uncomment any of the lines below to enable them (you will need to restart nvim).
   --
   -- require 'kickstart.plugins.debug',
-  -- require 'kickstart.plugins.indent_line',
-  -- require 'kickstart.plugins.lint',
-  -- require 'kickstart.plugins.autopairs',
-  -- require 'kickstart.plugins.neo-tree',
-  -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommended keymaps
+  require 'kickstart.plugins.indent_line',
+  require 'kickstart.plugins.lint',
+  require 'kickstart.plugins.autopairs',
+  require 'kickstart.plugins.neo-tree',
+  require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
   --
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
-  -- { import = 'custom.plugins' },
+  { import = 'custom.plugins' },
   --
   -- For additional information with loading, sourcing and examples see `:help lazy.nvim-🔌-plugin-spec`
   -- Or use telescope!
